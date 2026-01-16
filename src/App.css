@@ -64,3 +64,84 @@
   from { opacity: 0; transform: translate(-50%, 10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+.mode-switch {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: #f0f0f0;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.mode-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #666;
+}
+
+.mode-btn.active {
+  background: #fff;
+  color: #1677ff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.batch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.config-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.config-row label {
+  font-size: 14px;
+  color: #333;
+}
+
+.count-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+
+.pick-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 12px;
+  background: #f5f5f5;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pick-btn:hover {
+  background: #e6f7ff;
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+.batch-start {
+  width: 100%;
+  background: #1677ff;
+}
+
+.batch-stop {
+  width: 100%;
+  background: #ff4d4f;
+}
+
+.batch-stop:hover {
+  background: #ff7875;
+}

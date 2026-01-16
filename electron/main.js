@@ -1,13 +1,15 @@
 const { app, BrowserWindow, ipcMain, screen, clipboard, nativeImage } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const { screen: nutScreen, Region } = require('@nut-tree/nut-js')
+const { screen: nutScreen, Region, mouse, Point, keyboard, Key } = require('@nut-tree/nut-js')
 const Jimp = require('jimp')
 
 app.disableHardwareAcceleration()
 
 let mainWindow
 let overlayWindow
+let batchRunning = false
+let resolvePickPromise = null // Global resolver for pick-point
 
 const isDev = !app.isPackaged
 const lastRectPath = path.join(app.getPath('userData'), 'last-rect.json')
@@ -126,6 +128,213 @@ app.on('window-all-closed', () => {
 
 // --- IPC Handlers ---
 
+ipcMain.handle('pick-point', async () => {
+  // Use overlay window to capture a click
+  createOverlayWindow()
+  
+  // NOTE: Do NOT hide main window immediately. Wait for overlay to be ready.
+  // if (mainWindow && !mainWindow.isDestroyed()) {
+  //   mainWindow.hide()
+  // }
+  
+  if (overlayWindow) {
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+    
+    // NOTE: loadURL is async and might take time. If we show immediately, it might show old content or white screen.
+    // Also, if it's already loading, we might have race conditions.
+    // But importantly, we MUST ensure the window is visible.
+    
+    const url = isDev 
+        ? 'http://localhost:5173/#/overlay?mode=pick' 
+        : `file://${path.join(__dirname, '../dist/index.html')}#/overlay?mode=pick`
+        
+    try {
+      await overlayWindow.loadURL(url)
+      overlayWindow.show()
+      overlayWindow.focus()
+      
+      // Only hide main window if overlay loaded successfully
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide()
+      }
+    } catch (e) {
+      console.error('Failed to load overlay for pick-point:', e)
+      // If load fails, ensure main window is visible
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+      return null // Abort pick point
+    }
+  } else {
+    return null
+  }
+  
+  // Wait for the point-picked event
+  return new Promise((resolve) => {
+    // Store resolve globally so close-overlay can use it
+    resolvePickPromise = resolve
+
+    const handler = (_event, pos) => {
+      ipcMain.removeListener('point-picked', handler)
+      // Close overlay
+      if (overlayWindow) {
+        overlayWindow.close()
+        overlayWindow = null
+      }
+      
+      resolvePickPromise = null // Clear global
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+      resolve(pos)
+    }
+    ipcMain.once('point-picked', handler)
+  })
+})
+
+ipcMain.handle('stop-batch', () => {
+  batchRunning = false
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('status', 'batch-stopped')
+  }
+})
+
+ipcMain.handle('start-batch', async (_event, config) => {
+  if (batchRunning) return
+  batchRunning = true
+  
+  const { loopCount, sourcePos, targetPos } = config
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  
+  // Minimize main window to avoid interference
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize()
+  }
+
+  try {
+    // Read the crop region (last saved rect)
+    const rect = readLastRect()
+    if (!rect) throw new Error('No crop region set')
+    
+    // Prepare coordinates for capture (reuse logic from capture-region)
+    const primary = screen.getPrimaryDisplay()
+    const boundsDip = primary.bounds
+    const inset = 2
+    const absDipCrop = {
+      x: boundsDip.x + rect.x + inset,
+      y: boundsDip.y + rect.y + inset,
+      width: Math.max(1, rect.width - inset * 2),
+      height: Math.max(1, rect.height - inset * 2)
+    }
+    // We need the window context for dipToScreenRect, but overlay is closed.
+    // We can use null if we trust the primary display scaling or just use simple math if scaleFactor is known.
+    // safe approach: use screen.dipToScreenRect(null, ...) works for primary display usually
+    const absScreenCrop = screen.dipToScreenRect(null, {
+      x: Math.round(absDipCrop.x),
+      y: Math.round(absDipCrop.y),
+      width: Math.round(absDipCrop.width),
+      height: Math.round(absDipCrop.height)
+    })
+    
+    const nutRegion = new Region(
+      absScreenCrop.x,
+      absScreenCrop.y,
+      absScreenCrop.width,
+      absScreenCrop.height
+    )
+
+    for (let i = 1; i <= loopCount; i++) {
+      if (!batchRunning) break
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('status', `batch-progress:${i}:${loopCount}`)
+      }
+
+      // 1. Focus Source (Right)
+      await mouse.setPosition(new Point(sourcePos.x, sourcePos.y))
+      await sleep(100)
+      await mouse.leftClick()
+      await sleep(300)
+
+      // 2. Capture Screenshot
+      const grabbed = await nutScreen.grab(nutRegion)
+      
+      // Process image (Create nativeImage)
+      const jimpImg = new Jimp({
+        data: grabbed.data,
+        width: grabbed.width,
+        height: grabbed.height
+      })
+      
+      // Auto-crop fallback logic
+      if (Math.abs(grabbed.width - absScreenCrop.width) > 50 || Math.abs(grabbed.height - absScreenCrop.height) > 50) {
+        jimpImg.crop(absScreenCrop.x, absScreenCrop.y, absScreenCrop.width, absScreenCrop.height)
+      }
+
+      const img = nativeImage.createFromBitmap(jimpImg.bitmap.data, {
+        width: jimpImg.bitmap.width,
+        height: jimpImg.bitmap.height,
+        scaleFactor: primary.scaleFactor
+      })
+      
+      if (img.isEmpty()) throw new Error('Empty screenshot')
+
+      // 3. Write to Clipboard
+      clipboard.write({ image: img })
+      await sleep(300) // Wait for clipboard
+
+      // 4. Focus Target (Left)
+      await mouse.setPosition(new Point(targetPos.x, targetPos.y))
+      await sleep(100)
+      await mouse.leftClick()
+      await sleep(300)
+
+      // 5. Paste
+      await keyboard.pressKey(Key.LeftControl, Key.V)
+      await keyboard.releaseKey(Key.LeftControl, Key.V)
+      await sleep(1000) // Wait for paste to finish
+
+      // 6. Advance Slides (Both)
+      // Focus Source again to advance
+      await mouse.setPosition(new Point(sourcePos.x, sourcePos.y))
+      await sleep(100)
+      await mouse.leftClick()
+      await sleep(100)
+      await keyboard.pressKey(Key.Down)
+      await keyboard.releaseKey(Key.Down)
+      
+      // Focus Target again to advance
+      await mouse.setPosition(new Point(targetPos.x, targetPos.y))
+      await sleep(100)
+      await mouse.leftClick()
+      await sleep(100)
+      await keyboard.pressKey(Key.Down)
+      await keyboard.releaseKey(Key.Down)
+      
+      await sleep(500) // Wait for slide transition
+    }
+    
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('status', 'batch-complete')
+    }
+
+  } catch (e) {
+    console.error(e)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('status', 'copy_failed') // Reuse error status or add new one
+    }
+  } finally {
+    batchRunning = false
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.restore()
+      mainWindow.focus()
+    }
+  }
+})
+
 ipcMain.handle('open-overlay', () => {
   createOverlayWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -133,6 +342,11 @@ ipcMain.handle('open-overlay', () => {
   }
   if (overlayWindow) {
     overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+    // Reset to normal overlay mode if needed, or ensure correct URL
+    if (overlayWindow.webContents.getURL().includes('mode=pick')) {
+        const base = isDev ? 'http://localhost:5173/#/overlay' : `file://${path.join(__dirname, '../dist/index.html')}#/overlay`
+        overlayWindow.loadURL(base).catch(() => {})
+    }
     overlayWindow.show()
     overlayWindow.focus()
   }
@@ -143,6 +357,13 @@ ipcMain.handle('close-overlay', () => {
     overlayWindow.close()
     overlayWindow = null
   }
+  
+  // If we were picking a point, resolve with null to stop the hanging promise
+  if (resolvePickPromise) {
+    resolvePickPromise(null)
+    resolvePickPromise = null
+  }
+
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('status', 'cancelled')
     mainWindow.show()
