@@ -18,6 +18,8 @@ selenium-debug.log
 *.njsproj
 *.sln
 *.local
+dist
+dist-electron
 
 package-lock.json
 yarn.lock
