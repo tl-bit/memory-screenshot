@@ -1,0 +1,12 @@
+directories:
+  output: dist-electron
+  buildResources: build
+appId: com.copypast.tool
+productName: CopyPastTool
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+win:
+  target: nsis
+electronVersion: 28.3.3

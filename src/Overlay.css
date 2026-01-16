@@ -1,0 +1,54 @@
+.overlay-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  cursor: crosshair;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.crop-box {
+  position: absolute;
+  border: 2px solid #00ff00;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  background: transparent;
+  cursor: move;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border: 1px solid #00ff00;
+}
+.resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+
+.action-bar {
+  position: absolute;
+  bottom: -40px;
+  right: 0;
+  display: flex;
+  gap: 10px;
+  background: white;
+  padding: 5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.action-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.btn-confirm { background: #52c41a; color: white; }
+.btn-cancel { background: #faad14; color: white; }
+
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
