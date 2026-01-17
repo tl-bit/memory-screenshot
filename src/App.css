@@ -132,6 +132,18 @@
   color: #1677ff;
 }
 
+.pick-btn.success {
+  background: #f6ffed;
+  border-color: #52c41a;
+  color: #52c41a;
+}
+
+.pick-btn.success:hover {
+  background: #f6ffed;
+  border-color: #52c41a;
+  color: #52c41a;
+}
+
 .batch-start {
   width: 100%;
   background: #1677ff;

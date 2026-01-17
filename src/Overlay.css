@@ -9,6 +9,68 @@
   background-color: rgba(0, 0, 0, 0.3);
 }
 
+/* Pick mode specific styles */
+.overlay-container.pick-mode {
+  cursor: crosshair !important;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.pick-mode-prompt {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.75);
+  color: #1a1a1a;
+  padding: 16px 24px;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 2px solid #1677ff;
+  text-align: center;
+  z-index: 10000;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.pick-mode-prompt-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.pick-mode-prompt-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.pick-mode-prompt-hint {
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.pick-mode-top-hint {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  pointer-events: none;
+  font-size: 11px;
+  font-weight: 400;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  letter-spacing: 0.2px;
+}
+
 .crop-box {
   position: absolute;
   border: 2px solid #00ff00;

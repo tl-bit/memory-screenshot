@@ -11,6 +11,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
   },
@@ -18,5 +19,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
   },
 })
